@@ -1,7 +1,7 @@
 # 🛡️ Heimdall : AI-Driven Security Orchestration
 
 ## Overview
-SOCopilot is an automated Security Operations Center (SOC) pipeline designed to combat **alert fatigue**. By integrating open-source SIEM capabilities with low-code orchestration and Large Language Models (LLMs), this project demonstrates a modern approach to network defense and threat triage.
+Heimdall is an automated Security Operations Center (SOC) pipeline designed to combat **alert fatigue**. By integrating open-source SIEM capabilities with low-code orchestration and Large Language Models (LLMs), this project demonstrates a modern approach to network defense and threat triage.
 
 Instead of human analysts manually reviewing hundreds of raw logs, SOCopilot automatically intercepts security events, translates them into plain English using AI, assesses the severity, and pushes actionable intelligence directly to a team communication channel.
 
