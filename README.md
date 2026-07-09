@@ -21,6 +21,6 @@ Modern networks generate massive amounts of log data, leading to alert fatigue w
 * **Infrastructure:** Docker & Docker Compose
 * **SIEM / XDR:** Wazuh (Manager & Agent)
 * **Automation:** n8n
-* **AI / LLM:** OpenAI API (or local Llama 3 via Ollama)
+* **AI / LLM:** Deepseek api
 * **Alerting:** Slack API / Webhooks
 
