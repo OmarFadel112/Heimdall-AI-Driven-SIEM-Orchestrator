@@ -38,5 +38,3 @@ Project Heimdall is an AI-driven SIEM orchestrator designed to automate Tier 1 S
 * **Slack Interactivity:** The interactivity workflow successfully catches button clicks and bypasses the Slack three-second timeout by setting the webhook node to respond immediately. It updates the original Slack message using the chat update API.
 * **VirusTotal API:** The VirusTotal IP check node requires the specific IP address API endpoint rather than the file endpoint. 
 
----
-**Author:** Omar Elwahy
