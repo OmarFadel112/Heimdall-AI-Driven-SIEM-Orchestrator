@@ -1,0 +1,113 @@
+sample fim alert to test Heimdall
+[
+  {
+    "headers": {
+      "host": "n8n:5678",
+      "user-agent": "python-requests/2.31.0",
+      "accept-encoding": "gzip, deflate",
+      "accept": "*/*",
+      "connection": "keep-alive",
+      "content-type": "application/json",
+      "accept-charset": "UTF-8",
+      "content-length": "1788"
+    },
+    "params": {},
+    "query": {},
+    "body": {
+      "severity": 2,
+      "pretext": "WAZUH Alert",
+      "title": "Integrity checksum changed.",
+      "text": "File '/etc/ssh/sshd_config' modified\nMode: realtime\nChanged attributes: mtime\nOld modification time was: '1777284739', now it is '1783625882'\n",
+      "rule_id": "550",
+      "timestamp": "2026-07-09T19:38:02.429+0000",
+      "id": "1783625882.33773",
+      "all_fields": {
+        "timestamp": "2026-07-09T19:38:02.429+0000",
+        "rule": {
+          "level": 7,
+          "description": "Integrity checksum changed.",
+          "id": "550",
+          "mitre": {
+            "id": [
+              "T1565.001"
+            ],
+            "tactic": [
+              "Impact"
+            ],
+            "technique": [
+              "Stored Data Manipulation"
+            ]
+          },
+          "firedtimes": 1,
+          "mail": false,
+          "groups": [
+            "ossec",
+            "syscheck",
+            "syscheck_entry_modified",
+            "syscheck_file"
+          ],
+          "pci_dss": [
+            "11.5"
+          ],
+          "gpg13": [
+            "4.11"
+          ],
+          "gdpr": [
+            "II_5.1.f"
+          ],
+          "hipaa": [
+            "164.312.c.1",
+            "164.312.c.2"
+          ],
+          "nist_800_53": [
+            "SI.7"
+          ],
+          "tsc": [
+            "PI1.4",
+            "PI1.5",
+            "CC6.1",
+            "CC6.8",
+            "CC7.2",
+            "CC7.3"
+          ]
+        },
+        "agent": {
+          "id": "001",
+          "name": "Ubuntu-Agent-Test",
+          "ip": "192.168.230.130"
+        },
+        "manager": {
+          "name": "wazuh.manager"
+        },
+        "id": "1783625882.33773",
+        "full_log": "File '/etc/ssh/sshd_config' modified\nMode: realtime\nChanged attributes: mtime\nOld modification time was: '1777284739', now it is '1783625882'\n",
+        "syscheck": {
+          "path": "/etc/ssh/sshd_config",
+          "mode": "realtime",
+          "size_after": "3517",
+          "perm_after": "rw-r--r--",
+          "uid_after": "0",
+          "gid_after": "0",
+          "md5_after": "0a12ef5cc3580c2e0533fba58dba866d",
+          "sha1_after": "f6bc31820b9b04c820b0f46a55f2d1eed0b65ba9",
+          "sha256_after": "64325541513d33ea1d2ccd19c77750d458e67e7967fd2e7ef81d92f0aa2ffe21",
+          "uname_after": "root",
+          "gname_after": "root",
+          "mtime_before": "2026-04-27T10:12:19",
+          "mtime_after": "2026-07-09T19:38:02",
+          "inode_after": 395913,
+          "changed_attributes": [
+            "mtime"
+          ],
+          "event": "modified"
+        },
+        "decoder": {
+          "name": "syscheck_integrity_changed"
+        },
+        "location": "syscheck"
+      }
+    },
+    "webhookUrl": "http://n8n:5678/webhook-test/wazuh-alerts",
+    "executionMode": "test"
+  }
+]
