@@ -1,0 +1,111 @@
+{{
+  {
+    "channel": "YOUR_CHANNEL_ID_HERE",
+    "text": "🚨 New Heimdall Alert: " + ($json.ai_output?.severity || "Unknown") + " Severity",
+    "blocks": [
+      {
+        "type": "header",
+        "text": {
+          "type": "plain_text",
+          "text": "🛡️ Heimdall Security Alert",
+          "emoji": true
+        }
+      },
+      {
+        "type": "divider"
+      },
+      {
+        "type": "section",
+        "fields": [
+          {
+            "type": "mrkdwn",
+            "text": "*🔴 Severity:*\n" + ($json.ai_output?.severity || "Unknown")
+          },
+          {
+            "type": "mrkdwn",
+            "text": "*🕒 Time:*\n" + ($json.wazuh_data?.timestamp || "Unknown")
+          },
+          {
+            "type": "mrkdwn",
+            "text": "*🎯 MITRE Tactic:*\n" + ($json.ai_output?.mitre_tactic || "Unknown").split(' - ')[0]
+          },
+          {
+            "type": "mrkdwn",
+            "text": "*🌐 Source IP:*\n" + ($json.wazuh_data?.all_fields?.data?.srcip || "N/A")
+          },
+          {
+            "type": "mrkdwn",
+            "text": "*💻 Host:*\n" + ($json.wazuh_data?.all_fields?.agent?.name || "Ubuntu-Agent-Test")
+          }
+        ]
+      },
+      {
+        "type": "section",
+        "text": {
+          "type": "mrkdwn",
+          "text": "*📝 Alert Summary:*\n" + ($json.ai_output?.threat_summary || "No summary provided.")
+        }
+      },
+      {
+        "type": "section",
+        "text": {
+          "type": "mrkdwn",
+          "text": "*🔬 VirusTotal Intelligence:*\n" + ($json.ai_output?.vt_summary || "N/A")
+        }
+      },
+      {
+        "type": "section",
+        "text": {
+          "type": "mrkdwn",
+          "text": "*🛠️ Recommended Actions:*\n" + ($json.ai_output?.recommended_action || "Investigate manually.")
+        }
+      },
+      {
+        "type": "divider"
+      },
+      {
+        "type": "context",
+        "elements": [
+          {
+            "type": "mrkdwn",
+            "text": "📜 *Raw Rule:* " + ($json.wazuh_data?.title || "N/A") + " | *Level:* " + ($json.wazuh_data?.severity || "0") + "/15 | *ID:* " + ($json.wazuh_data?.rule_id || "N/A")
+          }
+        ]
+      },
+      {
+        "type": "actions",
+        "elements": [
+          {
+            "type": "button",
+            "text": {
+              "type": "plain_text",
+              "text": "🔍 View in Wazuh",
+              "emoji": true
+            },
+            "url": "https://localhost/app/wazuh#/alerts?id=" + ($json.wazuh_data?.id || ""),
+            "style": "primary"
+          },
+          {
+            "type": "button",
+            "text": {
+              "type": "plain_text",
+              "text": "✅ Acknowledge",
+              "emoji": true
+            },
+            "action_id": "acknowledge"
+          },
+          {
+            "type": "button",
+            "text": {
+              "type": "plain_text",
+              "text": "❌ False Positive",
+              "emoji": true
+            },
+            "style": "danger",
+            "action_id": "false_positive"
+          }
+        ]
+      }
+    ]
+  }
+}}
