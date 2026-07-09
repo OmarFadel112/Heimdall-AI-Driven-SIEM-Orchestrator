@@ -1,0 +1,699 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"deepseek-chat\",\n  \"response_format\": {\n    \"type\": \"json_object\"\n  },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are an expert Tier 1 SOC Analyst AI for Project Heimdall. Your task is to analyze security alerts from Wazuh and threat intelligence from VirusTotal. You must output your response in valid JSON format. \\n\\nYour JSON output must include:\\n1. 'severity': (Critical, High, Medium, Low)\\n2. 'threat_summary': A concise, one-paragraph explanation of what occurred.\\n3. 'mitre_tactic': The associated MITRE ATT&CK tactic (if applicable).\\n4. 'vt_summary': A string summarizing the VirusTotal engine detection ratios. If VirusTotal indicates malicious hits (>0), explicitly mention this ratio here and elevate the alert severity. If no external intelligence is available, state 'N/A'.\\n5. 'recommended_action': Specific, immediate steps for the human analyst.\\n\\nRely on the Wazuh log data as the primary source of truth, enriched by the VirusTotal stats.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify(\"Please analyze the following event data:\\n\\nWAZUH ALERT:\\n\" + JSON.stringify($('Webhook (from wazuh)').first().json.body) + \"\\n\\nVIRUSTOTAL STATISTICS:\\n\" + ($('VirusTotal Hash Check').isExecuted ? JSON.stringify($('VirusTotal Hash Check').first().json.data.attributes.last_analysis_stats) : ($('VirusTotal IP check').isExecuted ? JSON.stringify($('VirusTotal IP check').first().json.data.attributes.last_analysis_stats) : \"No external intelligence available.\"))) }}\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -528,
+        -448
+      ],
+      "id": "d2a45ffa-3fcc-4283-9b14-161aea8a584b",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YAPgSOgaYSMyeoLR",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c634f9b1-4bea-4a54-94f6-d8084d9bf1be",
+              "name": "parsed_payload",
+              "value": "={{ JSON.parse($json.body.payload) }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -864,
+        -64
+      ],
+      "id": "dd2061e6-7222-4bc9-8447-b12e9192e517",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.parsed_payload.actions[0].action_id }}",
+                    "rightValue": "acknowledge",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "b9629aca-f0a7-405c-8ba5-f1729bfe4e41"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "dee5fdfe-69e1-4b63-a38c-68eb014a189b",
+                    "leftValue": "={{ $json.parsed_payload.actions[0].action_id }}",
+                    "rightValue": "false_positive",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -656,
+        -64
+      ],
+      "id": "c27d7a07-75a7-450e-9f98-c840e9ffe2e0",
+      "name": "Switch1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "acba4b51-e0d9-45a6-b79b-26d1b56021c1",
+              "name": "ai_output",
+              "value": "={{ JSON.parse($json.choices[0].message.content) }}",
+              "type": "object"
+            },
+            {
+              "id": "8c6bf42b-559e-4e17-83f7-64b30769546b",
+              "name": "wazuh_data",
+              "value": "={{ $('Webhook (from wazuh)').first().json.body }}",
+              "type": "object"
+            },
+            {
+              "id": "0c935cb5-efe4-4c60-906f-e735c6b4caf2",
+              "name": "slack_blocks",
+              "value": "={{ [   {     \"type\": \"header\",     \"text\": {       \"type\": \"plain_text\",       \"text\": \"🛡️ Heimdall Security Alert\",       \"emoji\": true     }   },   {     \"type\": \"divider\"   },   {     \"type\": \"section\",     \"fields\": [       {         \"type\": \"mrkdwn\",         \"text\": \"*🔴 Severity:*\\n\" + ($json.ai_output?.severity || \"Unknown\")       },       {         \"type\": \"mrkdwn\",         \"text\": \"*📅 Time:*\\n\" + ($json.wazuh_data?.timestamp || \"Unknown\")       },       {         \"type\": \"mrkdwn\",         \"text\": \"*🎯 MITRE Tactic:*\\n\" + ($json.ai_output?.mitre_technique || \"Unknown\").split(' - ')[0]       },       {         \"type\": \"mrkdwn\",         \"text\": \"*💻 MITRE Technique:*\\n\" + ($json.ai_output?.mitre_technique || \"Unknown\")       },       {         \"type\": \"mrkdwn\",         \"text\": \"*🖥️ Source IP:*\\n\" + ($json.wazuh_data?.all_fields?.data?.srcip || \"N/A\")       },       {         \"type\": \"mrkdwn\",         \"text\": \"*📍 Host:*\\n\" + ($json.wazuh_data?.all_fields?.agent?.name || \"Ubuntu-Agent-Test\")       }     ]   },   {     \"type\": \"section\",     \"text\": {       \"type\": \"mrkdwn\",       \"text\": \"*📝 Alert Summary:*\\n\" + ($json.ai_output?.summary || \"No summary provided.\")     }   },   {     \"type\": \"section\",     \"text\": {       \"type\": \"mrkdwn\",       \"text\": \"*⚡ Recommended Actions:*\\n\" + ($json.ai_output?.recommended_action || \"Investigate manually.\")     }   },   {     \"type\": \"divider\"   },   {     \"type\": \"context\",     \"elements\": [       {         \"type\": \"mrkdwn\",         \"text\": \"🔍 *Raw Rule:* \" + ($json.wazuh_data?.title || \"N/A\") + \" | *Level:* \" + ($json.wazuh_data?.severity || \"0\") + \"/15 | *ID:* \" + ($json.wazuh_data?.rule_id || \"N/A\")       }     ]   },   {     \"type\": \"actions\",     \"elements\": [       {         \"type\": \"button\",         \"text\": {           \"type\": \"plain_text\",           \"text\": \"📊 View in Wazuh\",           \"emoji\": true         },         \"url\": \"https://wazuh.com\",         \"style\": \"primary\"       },       {         \"type\": \"button\",         \"text\": {           \"type\": \"plain_text\",           \"text\": \"✅ Acknowledge\",           \"emoji\": true         },         \"action_id\": \"acknowledge\"       },       {         \"type\": \"button\",         \"text\": {           \"type\": \"plain_text\",           \"text\": \"🚫 False Positive\",           \"emoji\": true         },         \"style\": \"danger\",         \"action_id\": \"false_positive\"       }     ]   } ] }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -272,
+        -448
+      ],
+      "id": "9dc0463c-9aa0-4f36-81d2-6ee5dcbf2af6",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://slack.com/api/chat.postMessage",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "slackApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  {\n    \"channel\": \"C0BALTHCD6J\",\n    \"text\": \"🚨 New Heimdall Alert: \" + ($json.ai_output?.severity || \"Unknown\") + \" Severity\",\n    \"blocks\": [\n      {\n        \"type\": \"header\",\n        \"text\": {\n          \"type\": \"plain_text\",\n          \"text\": \"🛡️ Heimdall Security Alert\",\n          \"emoji\": true\n        }\n      },\n      {\n        \"type\": \"divider\"\n      },\n      {\n        \"type\": \"section\",\n        \"fields\": [\n          {\n            \"type\": \"mrkdwn\",\n            \"text\": \"*🔴 Severity:*\\n\" + ($json.ai_output?.severity || \"Unknown\")\n          },\n          {\n            \"type\": \"mrkdwn\",\n            \"text\": \"*🕒 Time:*\\n\" + ($json.wazuh_data?.timestamp || \"Unknown\")\n          },\n          {\n            \"type\": \"mrkdwn\",\n            \"text\": \"*🎯 MITRE Tactic:*\\n\" + ($json.ai_output?.mitre_tactic || \"Unknown\").split(' - ')[0]\n          },\n          {\n            \"type\": \"mrkdwn\",\n            \"text\": \"*🌐 Source IP:*\\n\" + ($json.wazuh_data?.all_fields?.data?.srcip || \"N/A\")\n          },\n          {\n            \"type\": \"mrkdwn\",\n            \"text\": \"*💻 Host:*\\n\" + ($json.wazuh_data?.all_fields?.agent?.name || \"Ubuntu-Agent-Test\")\n          }\n        ]\n      },\n      {\n        \"type\": \"section\",\n        \"text\": {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*📝 Alert Summary:*\\n\" + ($json.ai_output?.threat_summary || \"No summary provided.\")\n        }\n      },\n      {\n        \"type\": \"section\",\n        \"text\": {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*🔬 VirusTotal Intelligence:*\\n\" + ($json.ai_output?.vt_summary || \"N/A\")\n        }\n      },\n      {\n        \"type\": \"section\",\n        \"text\": {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*🛠️ Recommended Actions:*\\n\" + ($json.ai_output?.recommended_action || \"Investigate manually.\")\n        }\n      },\n      {\n        \"type\": \"divider\"\n      },\n      {\n        \"type\": \"context\",\n        \"elements\": [\n          {\n            \"type\": \"mrkdwn\",\n            \"text\": \"📜 *Raw Rule:* \" + ($json.wazuh_data?.title || \"N/A\") + \" | *Level:* \" + ($json.wazuh_data?.severity || \"0\") + \"/15 | *ID:* \" + ($json.wazuh_data?.rule_id || \"N/A\")\n          }\n        ]\n      },\n      {\n        \"type\": \"actions\",\n        \"elements\": [\n          {\n            \"type\": \"button\",\n            \"text\": {\n              \"type\": \"plain_text\",\n              \"text\": \"🔍 View in Wazuh\",\n              \"emoji\": true\n            },\n            \"url\": \"https://localhost/app/wazuh#/alerts?id=\" + ($json.wazuh_data?.id || \"\"),\n            \"style\": \"primary\"\n          },\n          {\n            \"type\": \"button\",\n            \"text\": {\n              \"type\": \"plain_text\",\n              \"text\": \"✅ Acknowledge\",\n              \"emoji\": true\n            },\n            \"action_id\": \"acknowledge\"\n          },\n          {\n            \"type\": \"button\",\n            \"text\": {\n              \"type\": \"plain_text\",\n              \"text\": \"❌ False Positive\",\n              \"emoji\": true\n            },\n            \"style\": \"danger\",\n            \"action_id\": \"false_positive\"\n          }\n        ]\n      }\n    ]\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -48,
+        -448
+      ],
+      "id": "2916963a-4f49-46f5-8d9b-144180e546b0",
+      "name": "HTTP Request1",
+      "credentials": {
+        "slackApi": {
+          "id": "Nsa3WhM8l7CubBfF",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "curlImport": "",
+        "httpVariantWarning": "",
+        "method": "GET",
+        "url": "=https://www.virustotal.com/api/v3/ip_addresses/{{ $json.body.all_fields.data.srcip }}",
+        "": "",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "virusTotalApi",
+        "provideSslCertificates": false,
+        "sendQuery": false,
+        "sendHeaders": false,
+        "sendBody": false,
+        "options": {},
+        "infoMessage": ""
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -736,
+        -608
+      ],
+      "id": "4bd5096a-7f1a-4b55-a101-87d39075fab5",
+      "name": "VirusTotal IP check",
+      "extendsCredential": "virusTotalApi",
+      "credentials": {
+        "virusTotalApi": {
+          "id": "T8uInFfeKzsX3Ojd",
+          "name": "VirusTotal account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "curlImport": "",
+        "httpVariantWarning": "",
+        "method": "GET",
+        "url": "=https://www.virustotal.com/api/v3/files/{{ $json.body.all_fields.syscheck.sha256_after }}",
+        "": "",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "virusTotalApi",
+        "provideSslCertificates": false,
+        "sendQuery": false,
+        "sendHeaders": false,
+        "sendBody": false,
+        "options": {},
+        "infoMessage": ""
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -736,
+        -288
+      ],
+      "id": "c233c703-3c00-4244-a090-36ca65f5103e",
+      "name": "VirusTotal Hash Check",
+      "extendsCredential": "virusTotalApi",
+      "credentials": {
+        "virusTotalApi": {
+          "id": "T8uInFfeKzsX3Ojd",
+          "name": "VirusTotal account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wazuh-alerts",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1408,
+        -432
+      ],
+      "id": "c24ec5bb-fac2-4111-9de9-06c72394bf95",
+      "name": "Webhook (from wazuh)",
+      "webhookId": "780f977e-e0b5-4a64-aa38-1fe845120f9a",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "slack-interactivity",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1072,
+        -64
+      ],
+      "id": "9c91f496-e316-4595-a385-792c45e3c011",
+      "name": "Webhook (from slack)",
+      "webhookId": "306bb30c-8d29-40f6-994e-16f96dabe898"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.all_fields.rule.level }}",
+                    "rightValue": 7,
+                    "operator": {
+                      "type": "number",
+                      "operation": "gte"
+                    },
+                    "id": "6ed48198-4102-4fe5-807c-821d66a5197c"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -1184,
+        -432
+      ],
+      "id": "32decfe2-619d-449d-89f3-44ea942c9d16",
+      "name": "Switch (filter alert level)"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.all_fields.data.srcip }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    },
+                    "id": "e15b5aed-235b-409c-af0b-520858c9db69"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "feaa366c-0ee3-4e3a-adbd-62ab9f6fe3cb",
+                    "leftValue": "={{ $json.body.all_fields.syscheck.sha256_after }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -976,
+        -432
+      ],
+      "id": "8e160a35-6168-49e8-94fc-b0082dc11961",
+      "name": "IP or Hash"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://slack.com/api/chat.update",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "slackApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  {\n    \"channel\": $json.parsed_payload.container.channel_id,\n    \"ts\": $json.parsed_payload.container.message_ts,\n    \"text\": \"✅ Alert Acknowledged\",\n    \"blocks\": [\n      {\n        \"type\": \"header\",\n        \"text\": {\n          \"type\": \"plain_text\",\n          \"text\": \"🛡️ Heimdall Security Alert\",\n          \"emoji\": true\n        }\n      },\n      {\n        \"type\": \"section\",\n        \"text\": {\n          \"type\": \"mrkdwn\",\n          \"text\": \"✅ *This incident has been acknowledged and is currently under investigation.*\"\n        }\n      },\n      {\n        \"type\": \"context\",\n        \"elements\": [\n          {\n            \"type\": \"mrkdwn\",\n            \"text\": \"Triage handled by: <@\" + $json.parsed_payload.user.id + \">\"\n          }\n        ]\n      }\n    ]\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -416,
+        -160
+      ],
+      "id": "ece8f35e-085f-4b44-80fd-963c502e7a67",
+      "name": "Alert Ack to slack",
+      "credentials": {
+        "slackApi": {
+          "id": "Nsa3WhM8l7CubBfF",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://slack.com/api/chat.update",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "slackApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  {\n    \"channel\": $json.parsed_payload.container.channel_id,\n    \"ts\": $json.parsed_payload.container.message_ts,\n    \"text\": \"🚫 Alert marked as False Positive\",\n    \"blocks\": [\n      {\n        \"type\": \"header\",\n        \"text\": {\n          \"type\": \"plain_text\",\n          \"text\": \"🛡️ Heimdall Security Alert\",\n          \"emoji\": true\n        }\n      },\n      {\n        \"type\": \"section\",\n        \"text\": {\n          \"type\": \"mrkdwn\",\n          \"text\": \"🚫 *This incident has been closed out and marked as a False Positive.*\"\n        }\n      },\n      {\n        \"type\": \"context\",\n        \"elements\": [\n          {\n            \"type\": \"mrkdwn\",\n            \"text\": \"Closed by: <@\" + $json.parsed_payload.user.id + \">\"\n          }\n        ]\n      }\n    ]\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -416,
+        16
+      ],
+      "id": "2c44d649-8471-4ad8-9f0c-3826ae87519d",
+      "name": "False Flag",
+      "credentials": {
+        "slackApi": {
+          "id": "Nsa3WhM8l7CubBfF",
+          "name": "Slack account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Webhook (from wazuh)": [
+      {
+        "json": {
+          "headers": {
+            "host": "n8n:5678",
+            "user-agent": "python-requests/2.31.0",
+            "accept-encoding": "gzip, deflate",
+            "accept": "*/*",
+            "connection": "keep-alive",
+            "content-type": "application/json",
+            "accept-charset": "UTF-8",
+            "content-length": "1788"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "severity": 2,
+            "pretext": "WAZUH Alert",
+            "title": "Integrity checksum changed.",
+            "text": "File '/home/user/downloads/unknown_installer.exe' added\nMode: realtime\nChanged attributes: mtime\nOld modification time was: '1777284739', now it is '1783625882'\n",
+            "rule_id": "550",
+            "timestamp": "2026-07-09T19:38:02.429+0000",
+            "id": "1783625882.33773",
+            "all_fields": {
+              "timestamp": "2026-07-09T19:38:02.429+0000",
+              "rule": {
+                "level": 7,
+                "description": "Integrity checksum changed.",
+                "id": "550",
+                "mitre": {
+                  "id": [
+                    "T1565.001"
+                  ],
+                  "tactic": [
+                    "Impact"
+                  ],
+                  "technique": [
+                    "Stored Data Manipulation"
+                  ]
+                },
+                "firedtimes": 1,
+                "mail": false,
+                "groups": [
+                  "ossec",
+                  "syscheck",
+                  "syscheck_entry_added",
+                  "syscheck_file"
+                ]
+              },
+              "agent": {
+                "id": "001",
+                "name": "Ubuntu-Agent-Test",
+                "ip": "192.168.230.130"
+              },
+              "manager": {
+                "name": "wazuh.manager"
+              },
+              "id": "1783625882.33773",
+              "full_log": "File '/home/user/downloads/unknown_installer.exe' added\nMode: realtime\nChanged attributes: mtime\nOld modification time was: '1777284739', now it is '1783625882'\n",
+              "syscheck": {
+                "path": "/home/user/downloads/unknown_installer.exe",
+                "mode": "realtime",
+                "size_after": "3517000",
+                "perm_after": "rwxr-xr-x",
+                "uid_after": "1000",
+                "gid_after": "1000",
+                "md5_after": "84c82835a5d21bbcf75a61706d8ab549",
+                "sha1_after": "5ff465afaabcbf0150d1a3ab2c2e74f3a4426467",
+                "sha256_after": "24d00bcf466c661e74194c03de9e4717ae64791e204c4ff045e0ce24de8c54db",
+                "uname_after": "user",
+                "gname_after": "user",
+                "mtime_before": "2026-04-27T10:12:19",
+                "mtime_after": "2026-07-09T19:38:02",
+                "inode_after": 395914,
+                "changed_attributes": [
+                  "mtime"
+                ],
+                "event": "added"
+              },
+              "data": {
+                "srcip": "185.220.101.5"
+              },
+              "decoder": {
+                "name": "syscheck_integrity_changed"
+              },
+              "location": "syscheck"
+            }
+          },
+          "webhookUrl": "http://n8n:5678/webhook-test/wazuh-alerts",
+          "executionMode": "test"
+        }
+      }
+    ],
+    "Webhook (from slack)": [
+      {
+        "json": {
+          "headers": {
+            "host": "cattishly-nearest-spree.ngrok-free.dev",
+            "user-agent": "Slackbot 1.0 (+https://api.slack.com/robots)",
+            "content-length": "5010",
+            "accept": "application/json,*/*",
+            "accept-encoding": "gzip,deflate",
+            "content-type": "application/x-www-form-urlencoded",
+            "x-forwarded-for": "100.30.180.102",
+            "x-forwarded-host": "cattishly-nearest-spree.ngrok-free.dev",
+            "x-forwarded-proto": "https",
+            "x-slack-request-timestamp": "1783612236",
+            "x-slack-signature": "v0=87ceaf3d4c0b9496f12499e34b0079328815695db8de5b70faa5d28c03f81986"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "payload": "{\"type\":\"block_actions\",\"user\":{\"id\":\"U0BD7AK6ZRU\",\"username\":\"omarfadel00\",\"name\":\"omarfadel00\",\"team_id\":\"T0BALS9K4QN\"},\"api_app_id\":\"A0BAQQFUZNV\",\"token\":\"HzVB2O0vML8fwaEVL0Jit4TH\",\"container\":{\"type\":\"message\",\"message_ts\":\"1783611931.580129\",\"channel_id\":\"C0BALTHCD6J\",\"is_ephemeral\":false},\"trigger_id\":\"11538611107991.11360893650838.4dd76a1c9ccab7cb04b88ccbc5ef5dae\",\"team\":{\"id\":\"T0BALS9K4QN\",\"domain\":\"heimdallalerts\"},\"enterprise\":null,\"is_enterprise_install\":false,\"channel\":{\"id\":\"C0BALTHCD6J\",\"name\":\"security-alerts\"},\"message\":{\"user\":\"U0BASJJFFSQ\",\"type\":\"message\",\"ts\":\"1783611931.580129\",\"bot_id\":\"B0BAP06V9J6\",\"app_id\":\"A0BAQQFUZNV\",\"text\":\":rotating_light: New Heimdall Alert: High Severity\",\"team\":\"T0BALS9K4QN\",\"blocks\":[{\"type\":\"header\",\"block_id\":\"A7EWc\",\"text\":{\"type\":\"plain_text\",\"text\":\":shield: Heimdall Security Alert\",\"emoji\":true}},{\"type\":\"divider\",\"block_id\":\"p\\/HAK\"},{\"type\":\"section\",\"block_id\":\"e79Gz\",\"fields\":[{\"type\":\"mrkdwn\",\"text\":\"*:red_circle: Severity:*\\nHigh\",\"verbatim\":false},{\"type\":\"mrkdwn\",\"text\":\"*:date: Time:*\\n2026-07-09T15:45:26.808+0000\",\"verbatim\":false},{\"type\":\"mrkdwn\",\"text\":\"*:dart: MITRE Tactic:*\\nT1204.002\",\"verbatim\":false},{\"type\":\"mrkdwn\",\"text\":\"*:computer: MITRE Technique:*\\nT1204.002 - User Execution: Malicious File\",\"verbatim\":false},{\"type\":\"mrkdwn\",\"text\":\"*:desktop_computer: Source IP:*\\nN\\/A\",\"verbatim\":false},{\"type\":\"mrkdwn\",\"text\":\"*:round_pushpin: Host:*\\nUbuntu-Agent-Test\",\"verbatim\":false}]},{\"type\":\"section\",\"block_id\":\"guUDb\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*:memo: Alert Summary:*\\nTrojaned version of file '\\/bin\\/diff' detected on agent Ubuntu-Agent-Test (192.168.230.130). The file appears to be compromised, potentially allowing unauthorized code execution.\",\"verbatim\":false}},{\"type\":\"section\",\"block_id\":\"DQSjD\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*:zap: Recommended Actions:*\\nIsolate the affected host immediately. Verify the integrity of \\/bin\\/diff using package manager (e.g., 'rpm -V' or 'dpkg --verify'). Reinstall the diffutils package if tampered. Conduct a full system scan for additional indicators of compromise.\",\"verbatim\":false}},{\"type\":\"divider\",\"block_id\":\"X5Hp7\"},{\"type\":\"context\",\"block_id\":\"NzVSU\",\"elements\":[{\"type\":\"mrkdwn\",\"text\":\":mag: *Raw Rule:* Host-based anomaly detection event (rootcheck). | *Level:* 2\\/15 | *ID:* 510\",\"verbatim\":false}]},{\"type\":\"actions\",\"block_id\":\"9ytyq\",\"elements\":[{\"type\":\"button\",\"action_id\":\"ybXKL\",\"text\":{\"type\":\"plain_text\",\"text\":\":bar_chart: View in Wazuh\",\"emoji\":true},\"style\":\"primary\",\"url\":\"http:\\/\\/localhost:5601\\/app\\/discover#\\/?_g=(time:(from:now-24h,to:now))&_a=(query:(language:kuery,query:'_id:%221783611926.24243%22'))\"},{\"type\":\"button\",\"action_id\":\"acknowledge\",\"text\":{\"type\":\"plain_text\",\"text\":\":white_check_mark: Acknowledge\",\"emoji\":true}},{\"type\":\"button\",\"action_id\":\"false_positive\",\"text\":{\"type\":\"plain_text\",\"text\":\":no_entry_sign: False Positive\",\"emoji\":true},\"style\":\"danger\"}]}]},\"state\":{\"values\":{}},\"response_url\":\"https:\\/\\/hooks.slack.com\\/actions\\/T0BALS9K4QN\\/11582310963280\\/eDiDBwCUWmkEAAPrZqUS51cl\",\"actions\":[{\"action_id\":\"false_positive\",\"block_id\":\"9ytyq\",\"text\":{\"type\":\"plain_text\",\"text\":\":no_entry_sign: False Positive\",\"emoji\":true},\"style\":\"danger\",\"type\":\"button\",\"action_ts\":\"1783612236.337269\"}]}"
+          },
+          "webhookUrl": "http://n8n:5678/webhook/slack-interactivity",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch1": {
+      "main": [
+        [
+          {
+            "node": "Alert Ack to slack",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "False Flag",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook (from wazuh)": {
+      "main": [
+        [
+          {
+            "node": "Switch (filter alert level)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook (from slack)": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch (filter alert level)": {
+      "main": [
+        [
+          {
+            "node": "IP or Hash",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IP or Hash": {
+      "main": [
+        [
+          {
+            "node": "VirusTotal IP check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "VirusTotal Hash Check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VirusTotal IP check": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VirusTotal Hash Check": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "39aa6d2a-35ac-45a9-88d0-6f0d334262d6",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4afe724ae23ffe748ad093141dd99ae11c7645a691893fcf5a7b4d2cf5292474"
+  },
+  "nodeGroups": [],
+  "id": "4uzF5kSkJT6158Gs",
+  "tags": []
+}

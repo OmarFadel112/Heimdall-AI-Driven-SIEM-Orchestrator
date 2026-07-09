@@ -1,0 +1,14 @@
+# n8n Orchestrator Configuration
+N8N_ENCRYPTION_KEY=
+WEBHOOK_URL=
+GENERIC_TIMEZONE=Africa/Cairo
+
+# AI & Threat Intelligence APIs
+DEEPSEEK_API_KEY=
+VIRUSTOTAL_API_KEY=
+
+# Slack Integration
+SLACK_BOT_TOKEN=
+
+# Wazuh Indexer Configuration
+INDEXER_MEM_LIMIT=

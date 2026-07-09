@@ -1,0 +1,7 @@
+<!-- Add this block to your ossec.conf inside the <ossec_config> section -->
+<integration>
+  <name>shuffle</name>
+  <hook_url>http://single-node-n8n-1:5678/webhook/wazuh-alerts</hook_url>
+  <level>7</level>
+  <alert_format>json</alert_format>
+</integration>
